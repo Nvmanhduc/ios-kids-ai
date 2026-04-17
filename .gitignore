@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Env
+.env
+backend/.env
+
+# macOS
+.DS_Store
+
+# Xcode
+DerivedData/
+xcuserdata/
