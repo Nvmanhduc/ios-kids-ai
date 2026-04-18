@@ -168,46 +168,35 @@ final class DrawingViewModel: NSObject, ObservableObject, PKCanvasViewDelegate {
 
         let renderer = UIGraphicsImageRenderer(size: bounds.size, format: format)
         return renderer.image { context in
-            UIColor.white.setFill()
-            context.fill(bounds)
+            let cg = context.cgContext
 
+            // Base white background.
+            UIColor.white.setFill()
+            cg.fill(bounds)
+
+            // Render exactly what user sees in canvas (background image + strokes),
+            // avoiding color inversion issues from manual stroke re-rendering.
+            canvasView.layer.render(in: cg)
+
+            // Keep outside of imported image area white (white extension).
             if let importedImage {
                 let fitted = aspectFitRect(imageSize: importedImage.size, in: bounds)
-                importedImage.draw(in: fitted, blendMode: .normal, alpha: CGFloat(importedImageOpacity))
+                cg.setFillColor(UIColor.white.cgColor)
 
-                // Draw normalized strokes only inside image area so outside remains white.
-                context.cgContext.saveGState()
-                context.cgContext.clip(to: fitted)
-                let drawingImage = normalizedDrawingForSnapshot().image(from: bounds, scale: UIScreen.main.scale)
-                drawingImage.draw(in: bounds)
-                context.cgContext.restoreGState()
-            } else {
-                let drawingImage = normalizedDrawingForSnapshot().image(from: bounds, scale: UIScreen.main.scale)
-                drawingImage.draw(in: bounds)
+                if fitted.minY > bounds.minY {
+                    cg.fill(CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: fitted.minY - bounds.minY))
+                }
+                if fitted.maxY < bounds.maxY {
+                    cg.fill(CGRect(x: bounds.minX, y: fitted.maxY, width: bounds.width, height: bounds.maxY - fitted.maxY))
+                }
+                if fitted.minX > bounds.minX {
+                    cg.fill(CGRect(x: bounds.minX, y: fitted.minY, width: fitted.minX - bounds.minX, height: fitted.height))
+                }
+                if fitted.maxX < bounds.maxX {
+                    cg.fill(CGRect(x: fitted.maxX, y: fitted.minY, width: bounds.maxX - fitted.maxX, height: fitted.height))
+                }
             }
         }
-    }
-
-    private func normalizedDrawingForSnapshot() -> PKDrawing {
-        let lightTrait = UITraitCollection(userInterfaceStyle: .light)
-
-        let normalizedStrokes: [PKStroke] = canvasView.drawing.strokes.map { stroke in
-            let resolved = stroke.ink.color.resolvedColor(with: lightTrait)
-            let fixedColor: UIColor
-
-            if resolved.isEqual(UIColor.black) {
-                fixedColor = UIColor.black
-            } else if resolved.isEqual(UIColor.white) {
-                fixedColor = UIColor.white
-            } else {
-                fixedColor = resolved
-            }
-
-            let ink = PKInk(stroke.ink.inkType, color: fixedColor)
-            return PKStroke(ink: ink, path: stroke.path, transform: stroke.transform, mask: stroke.mask)
-        }
-
-        return PKDrawing(strokes: normalizedStrokes)
     }
 
     private func aspectFitRect(imageSize: CGSize, in bounds: CGRect) -> CGRect {
