@@ -225,12 +225,23 @@ final class DrawingViewModel: NSObject, ObservableObject, PKCanvasViewDelegate {
         var g: CGFloat = 0
         var b: CGFloat = 0
         var a: CGFloat = 0
-        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+
+        // Support both RGB and grayscale UIColor spaces.
+        if !color.getRed(&r, green: &g, blue: &b, alpha: &a) {
+            var white: CGFloat = 0
+            color.getWhite(&white, alpha: &a)
+            r = white
+            g = white
+            b = white
+        }
 
         let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
-        if luminance < 0.06 { return UIColor.black }
-        if luminance > 0.94 { return UIColor.white }
-        return color
+
+        // Export hardening: keep dark strokes dark, and convert very bright strokes
+        // to black to avoid the recurring black/white inversion in snapshot output.
+        if luminance < 0.12 { return UIColor.black }
+        if luminance > 0.88 { return UIColor.black }
+        return color.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
     }
 
     private func aspectFitRect(imageSize: CGSize, in bounds: CGRect) -> CGRect {

@@ -80,6 +80,10 @@ struct DrawingHomeView: View {
                                     RoundedRectangle(cornerRadius: 12)
                                         .fill(viewModel.selectedColor)
                                 )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.black.opacity(0.18), lineWidth: 1)
+                                )
                             }
                             .popover(isPresented: $showingColorPanel, attachmentAnchor: .point(.bottom), arrowEdge: .top) {
                                 colorPanel
@@ -361,8 +365,16 @@ struct DrawingHomeView: View {
         var g: CGFloat = 0
         var b: CGFloat = 0
         var a: CGFloat = 0
-        ui.getRed(&r, green: &g, blue: &b, alpha: &a)
+
+        if !ui.getRed(&r, green: &g, blue: &b, alpha: &a) {
+            var white: CGFloat = 0
+            ui.getWhite(&white, alpha: &a)
+            r = white
+            g = white
+            b = white
+        }
+
         let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
-        return luminance > 0.7 ? .black : .white
+        return luminance > 0.62 ? .black : .white
     }
 }
