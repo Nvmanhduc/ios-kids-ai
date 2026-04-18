@@ -170,19 +170,27 @@ final class DrawingViewModel: NSObject, ObservableObject, PKCanvasViewDelegate {
         return renderer.image { context in
             let cg = context.cgContext
 
-            // Base white background.
             UIColor.white.setFill()
             cg.fill(bounds)
 
-            // Render exactly what user sees in canvas (background image + strokes),
-            // avoiding color inversion issues from manual stroke re-rendering.
-            canvasView.layer.render(in: cg)
-
-            // Keep outside of imported image area white (white extension).
+            let fitted: CGRect
             if let importedImage {
-                let fitted = aspectFitRect(imageSize: importedImage.size, in: bounds)
-                cg.setFillColor(UIColor.white.cgColor)
+                fitted = aspectFitRect(imageSize: importedImage.size, in: bounds)
+                importedImage.draw(in: fitted, blendMode: .normal, alpha: CGFloat(importedImageOpacity))
+            } else {
+                fitted = bounds
+            }
 
+            // Draw strokes with explicit remap to avoid black/white inversion in exported preview.
+            cg.saveGState()
+            cg.clip(to: fitted)
+            let drawingImage = remappedDrawingForSnapshot().image(from: bounds, scale: UIScreen.main.scale)
+            drawingImage.draw(in: bounds)
+            cg.restoreGState()
+
+            // White-extend outside imported image area.
+            if importedImage != nil {
+                cg.setFillColor(UIColor.white.cgColor)
                 if fitted.minY > bounds.minY {
                     cg.fill(CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: fitted.minY - bounds.minY))
                 }
@@ -197,6 +205,32 @@ final class DrawingViewModel: NSObject, ObservableObject, PKCanvasViewDelegate {
                 }
             }
         }
+    }
+
+    private func remappedDrawingForSnapshot() -> PKDrawing {
+        let lightTrait = UITraitCollection(userInterfaceStyle: .light)
+
+        let mapped: [PKStroke] = canvasView.drawing.strokes.map { stroke in
+            let resolved = stroke.ink.color.resolvedColor(with: lightTrait)
+            let outColor = swapBlackWhiteIfNeeded(resolved)
+            let ink = PKInk(stroke.ink.inkType, color: outColor)
+            return PKStroke(ink: ink, path: stroke.path, transform: stroke.transform, mask: stroke.mask)
+        }
+
+        return PKDrawing(strokes: mapped)
+    }
+
+    private func swapBlackWhiteIfNeeded(_ color: UIColor) -> UIColor {
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+
+        let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        if luminance < 0.06 { return UIColor.black }
+        if luminance > 0.94 { return UIColor.white }
+        return color
     }
 
     private func aspectFitRect(imageSize: CGSize, in bounds: CGRect) -> CGRect {

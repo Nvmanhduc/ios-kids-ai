@@ -75,7 +75,7 @@ struct DrawingHomeView: View {
                                 .font(.subheadline.weight(.semibold))
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 10)
-                                .foregroundColor(.white)
+                                .foregroundColor(idealTextColor(for: viewModel.selectedColor))
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
                                         .fill(viewModel.selectedColor)
@@ -353,5 +353,16 @@ struct DrawingHomeView: View {
                     .stroke(color.opacity(0.3), lineWidth: 1)
             )
         }
+    }
+
+    private func idealTextColor(for color: Color) -> Color {
+        let ui = UIColor(color)
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        ui.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        return luminance > 0.7 ? .black : .white
     }
 }
